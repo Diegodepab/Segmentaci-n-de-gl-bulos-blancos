@@ -7,7 +7,7 @@ Este proyecto tiene como objetivo segmentar imágenes de células plasmáticas e
 ## Estructura del Proyecto
 
 El proyecto está organizado en los siguientes directorios y archivos:
-
+```
 /Segmentacion_Celulas_Plasmaticas
 │
 ├── /imagenes                      # Imágenes sin subir debido a su exagerado peso
@@ -22,7 +22,7 @@ El proyecto está organizado en los siguientes directorios y archivos:
 │   └── informe.pdf                # Informe detallado sobre los métodos y resultados.
 │
 └── README.md                      # Este archivo.
-
+```
 
 
 ## Requisitos
