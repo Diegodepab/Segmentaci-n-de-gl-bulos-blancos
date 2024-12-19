@@ -1,0 +1,302 @@
+---
+title: Segmentación de glóbulos blancos para imágenes de células plasmáticas en tejido
+  neoplásico
+subtitle: Herramientas de bioinformática
+author: "De Pablo Diego"
+profesor: Montes Torres Julio
+output:
+  html_document:
+    theme: spacelab
+    number_sections: true
+    toc: true
+    toc_float: true
+    code_folding: hide
+    fontsize: 12pt
+  pdf_document:
+    toc: true
+editor_options:
+  markdown:
+    wrap: sentence
+---
+```{=html}
+<style>
+/* Estilos generales */
+h1, h2, h3 {
+    color: #4c2882; /* Color de los títulos - Morado oscuro */
+    font-family: 'Arial', sans-serif; /* Fuente de los títulos */
+    font-weight: bold; /* Negrita para los títulos */
+}
+
+/* Párrafos y texto normal */
+p {
+    color: #2e0854; /* Texto morado oscuro */
+    line-height: 1.6; /* Espacio entre líneas */
+    font-family: Arial, sans-serif; /* Fuente del texto */
+}
+
+/* Estilos personalizados para detalles */
+.custom-details {
+    border: 1px solid #4b0082; /* Borde morado oscuro */
+    border-radius: 8px;
+    background-color: #f3e5f5; /* Fondo morado claro */
+    padding: 15px;
+    margin: 15px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
+}
+
+.custom-details summary {
+    font-weight: bold;
+    color: #4b0082; /* Texto morado oscuro */
+    cursor: pointer;
+}
+
+/* Estilos para el recuadro morado (antes azul) */
+.purple-alert {
+    border: 1px solid #6a0dad; /* Borde morado */
+    background-color: #e6d6f3; /* Fondo morado claro */
+    color: #4b0082; /* Texto morado oscuro */
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    font-size: 15px;
+}
+</style>
+
+```
+
+
+```{r inLineAlertSetup, include = FALSE}
+# define ALERT BOXES with colors in tonos morados.
+# blockquote
+# blue = Accessory information replaced by purple-alert for consistency
+NOTE_bx <- "<div class='purple-alert'>***NOTE:*** "
+# green = Optional information remains success
+OK_bx <- "<div class='alert alert-success'>***SUCCESS!*** "
+# orange = Negative potential consequences of an action
+WARN_bx <- "<div class='alert alert-warning'>***CAUTION!*** "
+# red = Dangerous certain consequences of an action
+DANGER_bx <- "<div class='alert alert-danger'>***DANGER!*** "
+# expandible box with morado adjustments
+EXPAND_bx <- '<details style="background-color: #f3e5f5; 
+                 border: 2px solid #4b0082;
+                 border-radius: 5px; 
+                 padding: 10px 10px 10px 10px;">
+<summary markdown="span" style="background-color: #d8bfd8; 
+                 color: #4b0082; 
+                 padding: 3px 2px 3px 2px;">'
+
+```
+
+
+# **Introducción**
+
+En este trabajo, se aborda la *segmentación de glóbulos blancos* en imágenes de *células plasmáticas obtenidas de tejido neoplásico*. La segmentación de imágenes médicas es crucial en el análisis automatizado de datos biomédicos, ya que permite identificar regiones de interés dentro de una muestra. Utilizando algoritmos de mixturas de gaussianas, nuestro objetivo es detectar los glóbulos blancos, que se presentan teñidos de color morado en las imágenes, además de descubrir otros posibles grupos de interés dentro del tejido neoplásico. Esta técnica nos ayudará a mejorar la precisión en el diagnóstico y análisis de las muestras celulares.
+
+# **Objetivos**
+
+1. **Segmentar glóbulos blancos en imágenes de células plasmáticas en tejido neoplásico** utilizando un modelo de mixturas de gaussianas.
+2. **Detectar y analizar otros grupos celulares** presentes en las imágenes, que puedan ser de relevancia para el diagnóstico.
+
+
+`r EXPAND_bx` Expande más si quieres leer <b>información de las imágenes que se usarán</b>
+</summary>
+
+El conjunto de datos utilizado consiste en **85 imágenes en formato BMP**, cada una con dimensiones de **2560x1920 píxeles**. Estas imágenes contienen células plasmáticas teñidas de manera específica para resaltar los glóbulos blancos, que se presentan en tonos morados.
+
+</details>
+
+# **Librerías**
+
+Para llevar a cabo la segmentación de glóbulos blancos, utilizaremos las siguientes librerías de R:
+
+
+```{r cargar_librerias, message=FALSE, warning=FALSE}
+
+# Función para cargar paquetes, instala si no está disponible
+cargar_paquete <- function(paquete) {
+  if (!require(paquete, character.only = TRUE)) {
+    install.packages(paquete, dependencies = TRUE)
+  }
+  library(paquete, character.only = TRUE)
+}
+
+# Verificar e instalar los paquetes necesarios
+cargar_paquete("bmp")
+cargar_paquete("mclust")
+cargar_paquete("EBImage")
+cargar_paquete("imager")
+
+
+```
+
+# **Carga de imágenes**
+
+Para comenzar, cargaremos las imágenes de entrenamiento que utilizaremos para ajustar nuestro modelo de mixturas de gaussianas. Estas imágenes contienen células plasmáticas teñidas, con glóbulos blancos que se presentan en tonos morados. A continuación, cargaremos las imágenes y extraeremos los patrones de píxeles que utilizaremos para entrenar el modelo.
+
+
+
+
+
+```{r cargar_imagenes}
+
+
+# Definir la carpeta de entrenamiento y muestreo
+carpeta_entrenamiento <- "entrenamiento/"
+porcentaje_muestreo <- 0.2  # Usar solo el 20 % del conjunto de datos
+
+# Obtener la lista de archivos en la carpeta de entrenamiento
+archivos_entrenamiento <- list.files(carpeta_entrenamiento, pattern = "\\.bmp$", full.names = TRUE)
+
+# Aplicar muestreo al 20 % del total de imágenes
+set.seed(123)  # Fijar semilla para reproducibilidad
+archivos_entrenamiento_muestra <- sample(archivos_entrenamiento, size = floor(length(archivos_entrenamiento) * porcentaje_muestreo))
+
+cat("Se han seleccionado", length(archivos_entrenamiento_muestra), "imágenes para el muestreo.\n")
+
+
+```
+
+
+
+# **Preprocesamiento de imágenes**
+
+Para facilitar la segmentación de los glóbulos blancos, es necesario realizar un preprocesamiento de las imágenes. En este caso, aplicaremos una serie de transformaciones para mejorar la calidad de las imágenes y resaltar las regiones de interés.
+
+
+```{r preprocesamiento_imagen}
+# Función para redimensionar y preprocesar una imagen
+preprocesar_imagen <- function(ruta_imagen, tamano = c(128, 128), escala_grises = TRUE, ajustar_contraste = TRUE) {
+  # Cargar la imagen
+  imagen <- load.image(ruta_imagen)
+  if (is.null(imagen)) return(NULL)
+  
+  # Redimensionar la imagen
+  imagen <- imresize(imagen, tamano[1], tamano[2])  # Redimensionar a 128x128
+  
+  # Ajuste de contraste (ecualización de histograma)
+  if (ajustar_contraste) {
+    imagen <- normalize(imagen)  # Normalización de valores entre [0,1]
+    imagen <- equalize(imagen)   # Ecualización del histograma
+  }
+  
+  # Convertir a escala de grises si es necesario
+  if (escala_grises) {
+    imagen <- grayscale(imagen)  # Convertir a escala de grises
+  }
+  
+  return(imagen)
+}
+
+# Aplicar el preprocesamiento a todas las imágenes del conjunto de entrenamiento (muestreado)
+imagenes_preprocesadas <- lapply(archivos_entrenamiento_muestra, preprocesar_imagen)
+
+# Verificar cuántas imágenes se han preprocesado correctamente
+cat("Se han preprocesado", sum(sapply(imagenes_preprocesadas, Negate(is.null))), "imágenes correctamente.\n")
+
+# Guardar imágenes preprocesadas si es necesario (puedes modificar esta parte para guardarlas en un formato específico)
+dir.create("preprocesadas", showWarnings = FALSE)  # Crear la carpeta de salida si no existe
+
+for (i in seq_along(imagenes_preprocesadas)) {
+  save.image(imagenes_preprocesadas[[i]], paste0("preprocesadas/img_", i, ".png"))
+}
+```
+## **Visualización de imágenes preprocesadas**
+
+
+
+
+
+```{r comparacion, warning=FALSE, message=FALSE}
+# Mostrar la primera imagen original y preprocesada
+if (!is.null(imagenes_entrenamiento[[1]]) && !is.null(imagenes_preprocesadas[[1]])) {
+  # Ajustar la ventana para mostrar ambas imágenes de manera organizada
+  par(mfrow = c(1, 2), mar = c(3, 3, 3, 3))  # 1 fila, 2 columnas, márgenes pequeños
+  
+  # Mostrar la imagen original en escala de grises
+  display(imagenes_entrenamiento[[1]], method = "raster", main = "Original en gris")
+  
+  # Mostrar la imagen preprocesada (ecualizada, normalizada, y en gris)
+  display(imagenes_preprocesadas[[1]], method = "raster", main = "Preprocesada")
+  
+  # Restablecer la ventana a la visualización normal
+  par(mfrow = c(1, 1))  # Volver a la visualización de una imagen por vez
+} else {
+  cat("No se pudo mostrar una o ambas imágenes.\n")
+}
+
+
+```
+
+# **Segmentación de glóbulos blancos**
+
+Explicacion general de segmentación
+
+## **Mixturas de Gaussianas:**
+
+```{r segmentacion_gmm}
+# Extraer los patrones (píxeles) de todas las imágenes
+obtener_patrones <- function(imagenes) {
+  patrones <- NULL
+  for (img in imagenes) {
+    if (!is.null(img)) {
+      
+      # Convertir la imagen en un array de píxeles y reorganizarla a una matriz de píxeles RGB
+      pixeles <- matrix(as.vector(img), ncol = 3, byrow = TRUE)  # Mantener RGB como columnas
+      patrones <- rbind(patrones, pixeles)  # Acumular los píxeles
+    }
+  }
+  return(patrones)
+}
+
+# Obtener patrones de todas las imágenes preprocesadas
+patrones <- obtener_patrones(imagenes_preprocesadas)
+cat("Se han obtenido", nrow(patrones), "patrones de todas las imágenes.\n")
+
+# Verificar si el número de patrones es suficiente antes de tomar una muestra
+if (nrow(patrones) >= 5000) {
+  n_muestra <- 5000
+} else {
+  n_muestra <- nrow(patrones)  # Ajustar al número de patrones disponibles
+  cat("Advertencia: Número de patrones ajustado a", n_muestra, "\n")
+}
+
+# Paso 2: Entrenar el modelo de Mixturas de Gaussianas
+set.seed(123)  # Semilla para reproducibilidad
+muestra_patrones <- patrones[sample(1:nrow(patrones), n_muestra), , drop = FALSE]
+
+# Entrenar el modelo de Mixtura de Gaussianas
+modelo_mclust <- Mclust(muestra_patrones, G = 1:5, prior = priorControl())
+summary(modelo_mclust)
+
+# Paso 3: Aplicar el modelo a una imagen de ejemplo
+imagen_ejemplo <- imagenes_preprocesadas[[1]]
+if (!is.null(imagen_ejemplo)) {
+  # Obtener los patrones de la imagen de ejemplo
+  pixeles_ejemplo <- matrix(as.vector(imagen_ejemplo), ncol = 3, byrow = TRUE)
+  
+  # Predecir las clases usando el modelo entrenado
+  prediccion <- predict(modelo_mclust, pixeles_ejemplo)$classification
+  
+  # Reconstruir la imagen segmentada
+  dim(prediccion) <- c(nrow(imagen_ejemplo), ncol(imagen_ejemplo))  # Restaurar dimensiones
+  
+  # Mostrar la imagen original y segmentada
+  par(mfrow = c(1, 2), mar = c(3, 3, 3, 3))
+  # Mostrar la imagen original sin alteraciones
+  if (!is.null(imagenes[[1]])) {
+    # Usamos la imagen cargada directamente desde read.bmp
+    imagen_original <- imagenes[[1]]
+    
+    # Si la imagen está en formato EBImage, podemos usar display para visualizarla
+    display(imagen_original, method = "raster", main = "Imagen Original")
+  }
+  image(prediccion, col = rainbow(max(prediccion)), main = "Imagen Segmentada")
+  
+  # Restaurar configuración de gráficos
+  par(mfrow = c(1, 1))
+}
+
+```
+
+
+
