@@ -1,4 +1,10 @@
 # Segmentación de Imágenes de Células Plasmáticas en Tejido Neoplásico
+## Dataset
+
+Las imágenes usadas en este trabajo corresponden a Gupta, R., & Gupta, A. (2019). MiMM_SBILab Dataset: Microscopic Images of Multiple Myeloma [Data set]. The Cancer Imaging Archive. [https://doi.org/10.7937/tcia.2019.pnn6aypl
+](https://doi.org/10.7937/tcia.2019.pnn6aypl
+)
+Las imágenes microscópicas se obtuvieron de portaobjetos de aspirado de médula ósea de pacientes con diagnóstico de mieloma múltiple según las pautas estándar. Los portaobjetos se tiñeron con tinción de Jenner-Giemsa. Las imágenes se capturaron con un aumento de 1000x utilizando un microscopio Nikon Eclipse-200 equipado con una cámara digital. Las imágenes se capturaron en formato BMP sin procesar con un tamaño de 2560x1920 píxeles. En total, este conjunto de datos consta de 85 imágenes.
 
 ## Descripción
 
